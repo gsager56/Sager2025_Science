@@ -21,3 +21,4 @@
 *.zip
 *.npy
 *.xlsx
+*nii.gz
