@@ -9,7 +9,7 @@ from os.path import isfile
 
 class MyWindow:
     # get list of neurons
-    home_dir = 'C:/Users/gsage/Documents/Research/hemibrain/morphology'
+    home_dir = '/Users/gs697/Research/Sager2025_Science' 
     token_id = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImdhcnJldHQuc2FnZXJAeWFsZS5lZHUiLCJsZXZlbCI6Im5vYXV0aCIsImltYWdlLXVybCI6Imh0dHBzOi8vbGgzLmdvb2dsZXVzZXJjb250ZW50LmNvbS9hLS9BT2gxNEdpTGNqZXlHYWNnS3NPcTgzdDNfczBoTU5sQUtlTkljRzdxMkU5Rz1zOTYtYz9zej01MD9zej01MCIsImV4cCI6MTgwMTAxNzUwNn0.dzq7Iy01JwSWbKq-Qvi8ov7Hwr0-ozpYeSnOsUD-Mx0"
     c = Client('neuprint.janelia.org', dataset='hemibrain:v1.2.1', token=token_id)
 

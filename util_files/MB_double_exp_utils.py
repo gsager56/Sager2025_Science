@@ -23,7 +23,7 @@ from scipy.spatial.distance import pdist, squareform, cdist
 from scipy.optimize import minimize
 
 
-home_dir = '/Users/gs697/Research/positioning_paper'
+home_dir = '/Users/gs697/Research/Sager2025_Science' 
 
 
 def RelaxationLabeling(init_prob, num_iters = 5, delta = 0.5):

@@ -1,3 +1,12 @@
+"""
+Utility functions for analyzing and processing mushroom body (MB) imaging data in Drosophila.
+This module contains functions for:
+- Relaxation labeling for image segmentation
+- Intensity thresholding for different image channels
+- Region identification and classification (a/b compartments, gamma lobes)
+- Spatial coordinate transformations and analysis
+"""
+
 from neuprint import Client
 from tifffile import imread
 import numpy as np
@@ -14,15 +23,27 @@ from scipy.spatial.distance import pdist, squareform, cdist
 from scipy.optimize import minimize
 
 
-home_dir = '/Users/gs697/Research/positioning_paper'
+home_dir = '/Users/gs697/Research/Sager2025_Science' 
 
 
 def RelaxationLabeling(init_prob, num_iters = 5, delta = 0.5):
+    """
+    Performs relaxation labeling on a probability map to refine segmentation.
+    
+    Args:
+        init_prob (numpy.ndarray): Initial probability map
+        num_iters (int): Number of iterations to perform
+        delta (float): Step size for probability updates
+        
+    Returns:
+        numpy.ndarray: Binary segmentation mask after relaxation labeling
+    """
     prob_map = np.zeros( init_prob.shape )
     for i in range(num_iters):
         sup_matrix = 2 * init_prob - 1
         prob_map[:,:,:] = 0
 
+        # Update probabilities based on neighboring voxels
         prob_map[1: ,:  ,:  ] += sup_matrix[:-1,:  ,:  ] / 6
         prob_map[:-1,:  ,:  ] += sup_matrix[1: ,:  ,:  ] / 6
         prob_map[:  ,1: ,:  ] += sup_matrix[:  ,:-1,:  ] / 6
@@ -30,14 +51,25 @@ def RelaxationLabeling(init_prob, num_iters = 5, delta = 0.5):
         prob_map[:  ,:  ,1: ] += sup_matrix[:  ,:  ,:-1] / 6
         prob_map[:  ,:  ,:-1] += sup_matrix[:  ,:  ,1: ] / 6
 
+        # Update probabilities with relaxation
         prob_map = init_prob + delta * prob_map
 
+        # Clip probabilities to [0,1] range
         init_prob = np.where( prob_map > 1, 1, prob_map)
         init_prob = np.where( prob_map < 0, 0, prob_map)
     return prob_map > 0.5
 
 def is_connected(image_file):
-    # some MBs are connected on either side of the brain, so here is a list of files where that happens
+    """
+    Checks if the mushroom body is connected across both sides of the brain for a given image file.
+    
+    Args:
+        image_file (str): Path to the image file
+        
+    Returns:
+        bool: True if the MB is connected, False otherwise
+    """
+    # List of files where MBs are connected on either side of the brain
     image_files = [home_dir + "/saved_data/MB_imaging/MB477B_ab_s/20250226_1_970_150uW_00001.tif", 
                    home_dir + "/saved_data/MB_imaging/MB477B_ab_s/20250228_2_970_150uW_00001.tif", 
                    home_dir + "/saved_data/MB_imaging/MB477B_ab_s/20250228_5_970_150uW_00001.tif", 
@@ -53,6 +85,16 @@ def is_connected(image_file):
     return False
 
 def get_intensity_thresh(image_file, i_channel):
+    """
+    Gets intensity thresholds for relaxation labeling of a specific image file and channel.
+    
+    Args:
+        image_file (str): Path to the image file
+        i_channel (int): Channel index (0 or 1)
+        
+    Returns:
+        list: [lower_threshold, upper_threshold] for the specified channel
+    """
     if image_file == home_dir + "/saved_data/MB_imaging/a'b'_ap_MB463B/ab_ap_mito_cyto/negative offset subtraction/0128_2_970.tif":
         if i_channel == 0:
             return [1.83251, 1.89763]
@@ -205,6 +247,17 @@ def get_intensity_thresh(image_file, i_channel):
             return [2.15229, 2.50106]
 
 def get_bool_seg_idxs(image_file, seg_idxs, side):
+    """
+    Gets boolean indices of the non-peduncle parts of the Kenyon Cells for segmentation based on spatial coordinates.
+    
+    Args:
+        image_file (str): Path to the image file
+        seg_idxs (numpy.ndarray): Array of segmentation indices
+        side (str): 'L' for left or 'R' for right hemisphere
+        
+    Returns:
+        numpy.ndarray: Boolean array indicating valid segmentation indices
+    """
     if image_file == home_dir + "/saved_data/MB_imaging/a'b'_ap_MB463B/ab_ap_mito_cyto/negative offset subtraction/0128_2_970.tif":
         if side == 'L':
             bool_seg_idxs = ~np.any([seg_idxs[:,1] < 50, 
@@ -494,6 +547,17 @@ def get_bool_seg_idxs(image_file, seg_idxs, side):
 
 
 def get_is_bp2(image_file, side, idxs):
+    """
+    Identifies voxels belonging to the beta prime 2 (bp2) compartment.
+    
+    Args:
+        image_file (str): Path to the image file
+        side (str): 'L' for left or 'R' for right hemisphere
+        idxs (numpy.ndarray): Array of voxel coordinates
+        
+    Returns:
+        numpy.ndarray: Binary array indicating bp2 voxels
+    """
     comps = np.zeros(len(idxs))
     assert idxs.shape[1] == 3
     if image_file == home_dir + "/saved_data/MB_imaging/a'b'_ap_MB463B/ab_ap_mito_cyto/negative offset subtraction/0128_2_970.tif":
@@ -547,6 +611,17 @@ def get_is_bp2(image_file, side, idxs):
     return comps
 
 def get_is_bp1(image_file, side, idxs):
+    """
+    Identifies voxels belonging to the beta prime 1 (bp1) compartment.
+    
+    Args:
+        image_file (str): Path to the image file
+        side (str): 'L' for left or 'R' for right hemisphere
+        idxs (numpy.ndarray): Array of voxel coordinates
+        
+    Returns:
+        numpy.ndarray: Binary array indicating bp1 voxels
+    """
     comps = np.zeros(len(idxs))
     assert idxs.shape[1] == 3
     if image_file == home_dir + "/saved_data/MB_imaging/a'b'_ap_MB463B/ab_ap_mito_cyto/negative offset subtraction/0128_2_970.tif":
@@ -600,6 +675,17 @@ def get_is_bp1(image_file, side, idxs):
     return comps
 
 def get_is_ap1(image_file, side, idxs):
+    """
+    Identifies voxels belonging to the alpha prime 1 (ap1) compartment.
+    
+    Args:
+        image_file (str): Path to the image file
+        side (str): 'L' for left or 'R' for right hemisphere
+        idxs (numpy.ndarray): Array of voxel coordinates
+        
+    Returns:
+        numpy.ndarray: Binary array indicating ap1 voxels
+    """
     comps = np.zeros(len(idxs))
     assert idxs.shape[1] == 3
     if image_file == home_dir + "/saved_data/MB_imaging/a'b'_ap_MB463B/ab_ap_mito_cyto/negative offset subtraction/0128_2_970.tif":
@@ -645,6 +731,17 @@ def get_is_ap1(image_file, side, idxs):
     return comps
 
 def get_is_ap2(image_file, side, idxs):
+    """
+    Identifies voxels belonging to the alpha prime 2 (ap2) compartment.
+    
+    Args:
+        image_file (str): Path to the image file
+        side (str): 'L' for left or 'R' for right hemisphere
+        idxs (numpy.ndarray): Array of voxel coordinates
+        
+    Returns:
+        numpy.ndarray: Binary array indicating ap2 voxels
+    """
     comps = np.zeros(len(idxs))
     assert idxs.shape[1] == 3
     if image_file == home_dir + "/saved_data/MB_imaging/a'b'_ap_MB463B/ab_ap_mito_cyto/negative offset subtraction/0128_2_970.tif":
@@ -691,6 +788,17 @@ def get_is_ap2(image_file, side, idxs):
 
 
 def get_is_ap3(image_file, side, idxs):
+    """
+    Identifies voxels belonging to the alpha prime 3 (ap3) compartment.
+    
+    Args:
+        image_file (str): Path to the image file
+        side (str): 'L' for left or 'R' for right hemisphere
+        idxs (numpy.ndarray): Array of voxel coordinates
+        
+    Returns:
+        numpy.ndarray: Binary array indicating ap3 voxels
+    """
     comps = np.zeros(len(idxs))
     assert idxs.shape[1] == 3
     if image_file == home_dir + "/saved_data/MB_imaging/a'b'_ap_MB463B/ab_ap_mito_cyto/negative offset subtraction/0128_2_970.tif":
@@ -748,6 +856,17 @@ def get_is_ap3(image_file, side, idxs):
 
 
 def get_is_b2(image_file, side, idxs):
+    """
+    Identifies voxels belonging to the beta 2 (b2) compartment.
+    
+    Args:
+        image_file (str): Path to the image file
+        side (str): 'L' for left or 'R' for right hemisphere
+        idxs (numpy.ndarray): Array of voxel coordinates
+        
+    Returns:
+        numpy.ndarray: Binary array indicating b2 voxels
+    """
     comps = np.zeros(len(idxs))
     assert idxs.shape[1] == 3
     if image_file == home_dir + "/saved_data/MB_imaging/MB477B_ab_s/20250226_1_970_150uW_00001.tif":
@@ -810,6 +929,17 @@ def get_is_b2(image_file, side, idxs):
 
 
 def get_is_b1(image_file, side, idxs):
+    """
+    Identifies voxels belonging to the beta 1 (b1) compartment.
+    
+    Args:
+        image_file (str): Path to the image file
+        side (str): 'L' for left or 'R' for right hemisphere
+        idxs (numpy.ndarray): Array of voxel coordinates
+        
+    Returns:
+        numpy.ndarray: Binary array indicating b1 voxels
+    """
     comps = np.zeros(len(idxs))
     assert idxs.shape[1] == 3
     if image_file == home_dir + "/saved_data/MB_imaging/MB477B_ab_s/20250226_1_970_150uW_00001.tif":
@@ -874,6 +1004,17 @@ def get_is_b1(image_file, side, idxs):
     return comps
 
 def get_is_a1(image_file, side, idxs):
+    """
+    Identifies voxels belonging to the alpha 1 (a1) compartment.
+    
+    Args:
+        image_file (str): Path to the image file
+        side (str): 'L' for left or 'R' for right hemisphere
+        idxs (numpy.ndarray): Array of voxel coordinates
+        
+    Returns:
+        numpy.ndarray: Binary array indicating a1 voxels
+    """
     comps = np.zeros(len(idxs))
     assert idxs.shape[1] == 3
     if image_file == home_dir + "/saved_data/MB_imaging/MB477B_ab_s/20250226_1_970_150uW_00001.tif":
@@ -939,6 +1080,17 @@ def get_is_a1(image_file, side, idxs):
     return comps
 
 def get_is_a2(image_file, side, idxs):
+    """
+    Identifies voxels belonging to the alpha 2 (a2) compartment.
+    
+    Args:
+        image_file (str): Path to the image file
+        side (str): 'L' for left or 'R' for right hemisphere
+        idxs (numpy.ndarray): Array of voxel coordinates
+        
+    Returns:
+        numpy.ndarray: Binary array indicating a2 voxels
+    """
     comps = np.zeros(len(idxs))
     assert idxs.shape[1] == 3
     if image_file == home_dir + "/saved_data/MB_imaging/MB477B_ab_s/20250226_1_970_150uW_00001.tif":
@@ -1005,6 +1157,17 @@ def get_is_a2(image_file, side, idxs):
 
 
 def get_is_a3(image_file, side, idxs):
+    """
+    Identifies voxels belonging to the alpha 3 (a3) compartment.
+    
+    Args:
+        image_file (str): Path to the image file
+        side (str): 'L' for left or 'R' for right hemisphere
+        idxs (numpy.ndarray): Array of voxel coordinates
+        
+    Returns:
+        numpy.ndarray: Binary array indicating a3 voxels
+    """
     comps = np.zeros(len(idxs))
     assert idxs.shape[1] == 3
     if image_file == home_dir + "/saved_data/MB_imaging/MB477B_ab_s/20250226_1_970_150uW_00001.tif":
@@ -1077,6 +1240,17 @@ def get_is_a3(image_file, side, idxs):
 
 
 def get_is_g12345(side, seg_idxs):
+    """
+    Divides the gamma lobe into 5 equal segments along the z-axis.
+    
+    Args:
+        side (str): 'L' for left or 'R' for right hemisphere
+        seg_idxs (numpy.ndarray): Array of segmentation indices
+        
+    Returns:
+        numpy.ndarray: Array of 5 binary masks for each gamma segment
+    """
+    # Calculate thresholds to divide z-axis into 5 equal segments
     threshes = np.quantile(seg_idxs[:,2], np.linspace(0,1,6))
     is_g12345 = np.array([ np.all([seg_idxs[:,2] > threshes[ii], seg_idxs[:,2] < threshes[ii+1]],axis=0) for ii in range(len(threshes)-1) ])
     if side == 'R':
